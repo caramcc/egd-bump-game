@@ -16,6 +16,18 @@ the player grows redder as an indication of how badly they're doing.
 
 |#
 
+;; TODO
+;; generate levels method. levels should loop up to a max size and then repeat at that size
+;; to infinity. avg score should be tallied for each level. bump count should be stored
+;; across lvls?
+; give a world a level? draw-level method?
+; gen-level number -> level, next-level : world -> world
+; some sort of interstitial? nah
+; on (posn=? player-posn level-goal) redraw board @ next level
+
+; TODO
+; score == number
+; end con => length of enemies > 1000?
 
 ;; TODO
 ;; make a tesselated ever-shifting background of random pretty triangles
@@ -39,8 +51,17 @@ the player grows redder as an indication of how badly they're doing.
                         (random-element (range 0 7 1)))
             (gen-enemies (- n 1)))))
 
-;; TODO
-; bump detect w/ list of bounds ranges for walls 
+(define (posn=? p1 p2)
+  (and (= (posn-x p1) (posn-x p2))
+       (= (posn-y p1) (posn-y p2))))
+
+(define (intersects-player? e p)
+  (posn=? (player-posn p) (enemy-posn e)))
+
+(define (intersects-enemies? p w dir)
+  (let ([moved-p (move-player-posn p dir)])
+    (ormap (lambda (e) (intersects-player? e moved-p)) (world-enemies w))))
+
 
 ;;;;; STRUCTS ;;;;;
 ; a player is a Posn Number Number
@@ -50,28 +71,39 @@ the player grows redder as an indication of how badly they're doing.
 (define-struct enemy (posn stops-left))
 
 ; a world is a Player and (Listof Enemy)
-(define-struct world (player enemies))
+(define-struct world (player enemies level))
 
+; a level is a Number Posn
+(define-struct level (number goal)) 
 
 
 ;;;;; CONSTANTS ;;;;;
 (define MMMM (rs-read "mmm.wav"))
 (define ENEMY-IMG (star 25/2 'solid 'black))
-(define PLAYER-IMG (star 25/2 'solid 'blue))
+(define PLAYER-START (make-posn 25 25))
+(define PLAYER-IMG (overlay (star 25/2 'solid 'blue) (circle 25/2 'solid 'red)))
+
+(define GOAL-IMG (overlay (star 25/2 'solid 'yellow) (circle 25/2 'solid 'black)))
 (define SCN (make-grid 500 500 25))
 (define MOV-CONST 25)
 (define ENEMY-STOPS-CONST 5)
 (define FRONT-DOOR (make-posn 50 0))
 (define BACK-DOOR (make-posn 650 0))
 
+(define RED-SCN (square 500 'solid 'red))
 
-
-(define TEST-ENEMIES (gen-enemies 100))
+(define TEST-ENEMIES (gen-enemies 10))
   ;(list (make-enemy (make-posn 50 75) 3)
    ;                        (make-enemy (make-posn 300 100) 4)
     ;                       (make-enemy (make-posn 75 75) 1)
      ;                      (make-enemy (make-posn 400 400)  5)))
-(define TEST-PLAYER (make-player (make-posn 25 25) 0 0))
+(define TEST-PLAYER (make-player PLAYER-START 0 0))
+
+(define (random-goal n)
+  (make-posn (random-element (range (* 50 n) (* 100 n) 25))
+             (random-element (range (* 50 n) (* 100 n) 25))))
+
+(define TEST-LEVEL (make-level 1 (random-goal 1)))
 
 ;;;;; FUNCTIONS ;;;;;
 
@@ -82,20 +114,22 @@ the player grows redder as an indication of how badly they're doing.
                scene))
 
 (define (draw-world w)
-  (place-image (text (number->string (calc-score w)) 12 'red)
-               250 25
-               (place-image PLAYER-IMG
-                            (posn-x (player-posn (world-player w)))
-                            (posn-y (player-posn (world-player w)))
-                            (foldl draw-enemy SCN (world-enemies w)))))
+  (let ([p (world-player w)]
+        [l (world-level w)])        
+    (place-image (text (number->string (calc-score w)) 12 'red)
+                 250 25
+                 (place-image PLAYER-IMG
+                              (posn-x (player-posn p))
+                              (posn-y (player-posn p))
+                              (place-image GOAL-IMG
+                                           (posn-x (level-goal l))
+                                           (posn-y (level-goal l))
+                                           (foldl draw-enemy
+                                                  (make-grid (* 100 (level-number (world-level w)))
+                                                             (* 100 (level-number (world-level w)))
+                                                             25)
+                                                  (world-enemies w)))))))
 
-(define (posn=? p1 p2)
-  (and (= (posn-x p1) (posn-x p2))
-       (= (posn-y p1) (posn-y p2))))
-
-(define (intersects-enemies? p w dir)
-  (let ([moved-p (move-player-posn p dir)])
-    (ormap (lambda (e) (posn=? (player-posn moved-p) (enemy-posn e))) (world-enemies w))))
 
 
 ; move player p in the specified direction
@@ -117,13 +151,16 @@ the player grows redder as an indication of how badly they're doing.
                                           (player-score p)
                                           (player-bump-count p))]))
 
+(define (bump p)
+  (begin (play MMMM)
+         (make-player (player-posn p)
+               (player-score p)
+               (+ 1 (player-bump-count p)))))
+
 (define (move-player p w dir)
   (if (intersects-enemies? p w dir)
-    (begin (play MMMM)
-           (make-player (player-posn p)
-                        (player-score p)
-                        (+ 1 (player-bump-count p))))
-    (move-player-posn p dir)))
+      (bump p)
+      (move-player-posn p dir)))
 
 ; distance helper
 (define (distance-between p1 p2)
@@ -142,15 +179,29 @@ the player grows redder as an indication of how badly they're doing.
 ;(define (centroid w)
 ;  (foldl
 
+; add-bumps : player number -> player
+; bumps 
+(define (add-bumps p count)
+  (if (= 0 count)
+      p
+      (add-bumps (bump p) (sub1 count))))
 
 
-; moves the list of enemies
-; move-enemies : (listof enemy) -> (listof enemy)
-(define (move-enemies loe)
-  (map (lambda (e)
-         (let ([dir (random-element '(up down left right))])
-           (move-enemy e dir)))
-       loe))
+; moves the list of enemies, increasing bump count every bump
+; move-enemies : world->world
+(define (move-enemies w)
+  (letrec ([loe (world-enemies w)]
+        [p   (world-player w)]
+        [bump-count 0]
+        [local-loe
+             (map (lambda (e)
+                    (letrec ([dir (random-element '(up down left right))]
+                           [moved-e (move-enemy e dir)])
+                      (if (intersects-player? moved-e p)
+                          (begin (set! bump-count (add1 bump-count)) e)
+                          moved-e)))
+                  loe)])
+      (make-world (add-bumps p bump-count) local-loe (world-level w))))
 
 ; moves an enemy one movement unit in a random direction
 (define (move-enemy e dir)
@@ -181,33 +232,72 @@ the player grows redder as an indication of how badly they're doing.
             [(not (= (posn-y door) (posn-y (enemy-posn enemy))))
 |#
 
+; next-level : world -> world
+(define (next-level w)
+  (let ([p (world-player w)]
+        [e (world-enemies w)]
+        [ln (level-number (world-level w))])
+  (make-world (make-player PLAYER-START
+                           (+ 10 (player-score p))
+                           (player-bump-count p))
+              (append e (gen-enemies 10))
+              (make-level (min (+ 1 ln) 5)
+                          (random-goal ln)))))
+                           
+
+; player-at-goal? : World -> Boolean
+(define (player-at-goal? w)
+  (posn=? (player-posn (world-player w))
+          (level-goal (world-level w))))
+
 ; world-tick should introduce new enemies and stuff and count the player's score
 (define (world-tick w)
-  (make-world (world-player w) (move-enemies (world-enemies w))))
+  (if (player-at-goal? w)
+      (next-level w)
+      (move-enemies w)))
 
 ; key-handler: world key -> world
 (define (key-handler w k)
-  (cond [(or (key=? "up" k) 
-             (key=? "down" k) 
-             (key=? "left" k) 
-             (key=? "right" k))
-         (make-world (move-player (world-player w) w (string->symbol k))
-                     (world-enemies w))]
-        [(key=? "w" k) (make-world (move-player (world-player w) w 'up)
-                     (world-enemies w))]
-        [(key=? "a" k) (make-world (move-player (world-player w) w 'left)
-                     (world-enemies w))]
-        [(key=? "s" k) (make-world (move-player (world-player w) w 'down)
-                     (world-enemies w))]
-        [(key=? "d" k) (make-world (move-player (world-player w) w 'right)
-                     (world-enemies w))]
+  (cond [(or (key=? "up" k) (key=? "w" k))
+         (make-world (move-player (world-player w) w 'up) (world-enemies w) (world-level w))]
+        [(or (key=? "left" k) (key=? "a" k))
+         (make-world (move-player (world-player w) w 'left) (world-enemies w) (world-level w))]
+        [(or (key=? "down" k) (key=? "s" k))
+         (make-world (move-player (world-player w) w 'down) (world-enemies w) (world-level w))]
+        [(or (key=? "right" k) (key=? "d" k))
+         (make-world (move-player (world-player w) w 'right)(world-enemies w) (world-level w))]
+        [(key=? " " k) (make-world (world-player w)
+                                   (append (gen-enemies 350) (world-enemies w))
+                                   (world-level w))]
         [else w]))
 
-(define world0 (make-world TEST-PLAYER TEST-ENEMIES))
+; game over when enemies > 350 (theoretical max. 400)
+(define (game-over? w)
+  (>= (length (world-enemies w)) 350))
+
+(define (draw-game-over w)
+  (place-image (text (string-append "You were bumped: "
+                                    (number->string (player-bump-count (world-player w)))
+                                    " times.")
+                     24
+                     'black)
+               250
+               250
+               (place-image (text (string-append "The biggest crowd you made it through was "
+                                                 (number->string (player-score (world-player w)))
+                                                 " people.")
+                                  12
+                                  'black)
+                            250
+                            (+ 250 24)
+                            (empty-scene 500 500))))
+  
+(define world0 (make-world TEST-PLAYER TEST-ENEMIES TEST-LEVEL))
 
 (big-bang world0
           (on-tick world-tick 0.1)
-          (to-draw draw-world)
+          (to-draw draw-world 500 500)
           (on-key key-handler)
-          ;(stop-when game-over?)
+          (stop-when game-over? draw-game-over)
+          ;(display-mode 'fullscreen)
           )
