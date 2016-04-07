@@ -4,6 +4,7 @@
 (require 2htdp/image)
 (require 2htdp/universe)
 (require rsound)
+(require racket/runtime-path)
 
 #| ABOUT/ TODO
 personal space optimization as measured by the distance between the player
@@ -78,7 +79,8 @@ the player grows redder as an indication of how badly they're doing.
 
 
 ;;;;; CONSTANTS ;;;;;
-(define MMMM (rs-read "mmm.wav"))
+(define-runtime-path MMMM-PATH "./mmm.wav")
+(define MMMM (rs-read MMMM-PATH))
 (define ENEMY-IMG (star 25/2 'solid 'black))
 (define PLAYER-START (make-posn 25 25))
 (define PLAYER-IMG (overlay (star 25/2 'solid 'blue) (circle 25/2 'solid 'red)))
