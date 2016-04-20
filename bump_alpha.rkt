@@ -26,9 +26,12 @@ the player grows redder as an indication of how badly they're doing.
 ; some sort of interstitial? nah
 ; on (posn=? player-posn level-goal) redraw board @ next level
 
-; TODO
-; score == number
-; end con => length of enemies > 1000?
+;;;;; PALETTE
+(define BG-YELLOW (make-color 235 227 170))
+(define MELON (make-color 202 215 178))
+(define AQUA (make-color 168 202 186))
+(define SLATE (make-color 131 134 137))
+(define BURGUNDY (make-color 93 65 87))
 
 ;; TODO
 ;; make a tesselated ever-shifting background of random pretty triangles
@@ -39,9 +42,9 @@ the player grows redder as an indication of how badly they're doing.
 
 (define (make-grid x y spacing)
   (foldl (lambda (l base)
-           (place-image (line 0 (* 2 y) 'black) l l 
-                        (place-image (line (* 2 x) 0 'blue) l l base)))
-         (empty-scene x y)
+           (place-image (line 0 (* 2 y) MELON) l l 
+                        (place-image (line (* 2 x) 0 MELON) l l base)))
+         (rectangle x y "solid" BG-YELLOW)
          (range 0 (max x y) spacing)))
 
 (define (gen-enemies n)
@@ -51,6 +54,8 @@ the player grows redder as an indication of how badly they're doing.
                                    (random-element (range 0 500 25)))
                         (random-element (range 0 7 1)))
             (gen-enemies (- n 1)))))
+
+
 
 (define (posn=? p1 p2)
   (and (= (posn-x p1) (posn-x p2))
@@ -83,9 +88,9 @@ the player grows redder as an indication of how badly they're doing.
 (define MMMM (rs-read MMMM-PATH))
 (define ENEMY-IMG (star 25/2 'solid 'black))
 (define PLAYER-START (make-posn 25 25))
-(define PLAYER-IMG (overlay (star 25/2 'solid 'blue) (circle 25/2 'solid 'red)))
+(define PLAYER-IMG (overlay (star 25/2 'solid BURGUNDY) (circle 25/2 'solid AQUA)))
 
-(define GOAL-IMG (overlay (star 25/2 'solid 'yellow) (circle 25/2 'solid 'black)))
+(define GOAL-IMG (overlay (star 25/2 'solid BG-YELLOW) (circle 25/2 'solid SLATE)))
 (define SCN (make-grid 500 500 25))
 (define MOV-CONST 25)
 (define ENEMY-STOPS-CONST 5)
@@ -118,8 +123,8 @@ the player grows redder as an indication of how badly they're doing.
 (define (draw-world w)
   (let ([p (world-player w)]
         [l (world-level w)])        
-    (place-image (text (number->string (calc-score w)) 12 'red)
-                 250 25
+    (place-image (text (string-append "Bumps: " (number->string (player-bump-count p))) 12 BURGUNDY)
+                 100 25
                  (place-image PLAYER-IMG
                               (posn-x (player-posn p))
                               (posn-y (player-posn p))
@@ -289,10 +294,10 @@ the player grows redder as an indication of how badly they're doing.
                                                  (number->string (player-score (world-player w)))
                                                  " people.")
                                   12
-                                  'black)
+                                  BURGUNDY)
                             250
                             (+ 250 24)
-                            (empty-scene 500 500))))
+                            (rectangle 500 500 "solid" BG-YELLOW))))
   
 (define world0 (make-world TEST-PLAYER TEST-ENEMIES TEST-LEVEL))
 

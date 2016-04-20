@@ -18,4 +18,6 @@ Objective: Navigate to each goal. Run into as few other people as possible.
 
 ### Features and Fixes
 - improve enemy spawning and goal spawning
+- - prevent enemies from spawning out of bounds, on goal, on player
+- - prevent enemies from moving on goal (or flag that they're on goal)
 - tdb after playtests
