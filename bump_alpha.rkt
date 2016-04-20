@@ -17,14 +17,8 @@ the player grows redder as an indication of how badly they're doing.
 
 |#
 
-;; TODO
-;; generate levels method. levels should loop up to a max size and then repeat at that size
-;; to infinity. avg score should be tallied for each level. bump count should be stored
-;; across lvls?
-; give a world a level? draw-level method?
-; gen-level number -> level, next-level : world -> world
-; some sort of interstitial? nah
-; on (posn=? player-posn level-goal) redraw board @ next level
+;;;;; STATE
+(define GAME-STARTED #f)
 
 ;;;;; PALETTE
 (define BG-YELLOW (make-color 235 227 170))
@@ -169,22 +163,6 @@ the player grows redder as an indication of how badly they're doing.
       (bump p)
       (move-player-posn p dir)))
 
-; distance helper
-(define (distance-between p1 p2)
-  (sqrt (+ (sqr (- (posn-x p1) (posn-x p2)))
-           (sqr (- (posn-y p1) (posn-y p2))))))
-
-; calculate the player's score as a function of distance between them and all enemies
-; calc-score: World -> Number
-(define (calc-score w)
-  (floor (/ (foldl (lambda (enemy i)
-           (+ i (distance-between (player-posn (world-player w)) (enemy-posn enemy))))
-           0
-           (world-enemies w)) (length (world-enemies w)))))
-
-; find the centroid between enemies
-;(define (centroid w)
-;  (foldl
 
 ; add-bumps : player number -> player
 ; bumps 
@@ -259,12 +237,15 @@ the player grows redder as an indication of how badly they're doing.
 
 ; world-tick should introduce new enemies and stuff and count the player's score
 (define (world-tick w)
-  (if (player-at-goal? w)
-      (next-level w)
-      (move-enemies w)))
+  (if GAME-STARTED
+      (if (player-at-goal? w)
+          (next-level w)
+          (move-enemies w))
+      w))
 
 ; key-handler: world key -> world
 (define (key-handler w k)
+  (begin (set! GAME-STARTED #t)
   (cond [(or (key=? "up" k) (key=? "w" k))
          (make-world (move-player (world-player w) w 'up) (world-enemies w) (world-level w))]
         [(or (key=? "left" k) (key=? "a" k))
@@ -276,11 +257,32 @@ the player grows redder as an indication of how badly they're doing.
         [(key=? " " k) (make-world (world-player w)
                                    (append (gen-enemies 350) (world-enemies w))
                                    (world-level w))]
-        [else w]))
+        [else w])))
 
 ; game over when enemies > 350 (theoretical max. 400)
 (define (game-over? w)
   (>= (length (world-enemies w)) 350))
+
+(define (draw-world-wrapper w)
+  (if GAME-STARTED
+      (draw-world w)
+      (draw-welcome-screen)))
+
+(define (draw-welcome-screen)
+  (place-image (text "Navigate through the crowd using WASD or arrow keys to each goal."
+                 14
+                 BURGUNDY)
+               250 225
+           (place-image
+            (text "Press spacebar to give up."
+                 14
+                 BURGUNDY)
+            250 250
+            (place-image (text "Press any other key to start."
+                 14
+                 BURGUNDY)
+                         250 275
+            (rectangle 500 500 "solid" BG-YELLOW)))))
 
 (define (draw-game-over w)
   (place-image (text (string-append "You were bumped: "
@@ -303,7 +305,7 @@ the player grows redder as an indication of how badly they're doing.
 
 (big-bang world0
           (on-tick world-tick 0.1)
-          (to-draw draw-world 500 500)
+          (to-draw draw-world-wrapper 500 500)
           (on-key key-handler)
           (stop-when game-over? draw-game-over)
           ;(display-mode 'fullscreen)
